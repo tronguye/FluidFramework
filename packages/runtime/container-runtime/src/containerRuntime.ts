@@ -1052,9 +1052,8 @@ export class ContainerRuntime extends TypedEventEmitter<IContainerRuntimeEvents>
         // Map the deprecated generateSummaries flag to disableSummaries.
         if (this.runtimeOptions.summaryOptions.generateSummaries === false) {
             this.runtimeOptions.summaryOptions.disableSummaries = true;
-	}
+        }
 
-        // Only create a SummaryManager if summaries are enabled and we are not the summarizer client
         if (this.context.clientDetails.type === summarizerClientType) {
             this._summarizer = new Summarizer(
                 "/_summarizer",
@@ -1069,6 +1068,8 @@ export class ContainerRuntime extends TypedEventEmitter<IContainerRuntimeEvents>
         else if (this.summariesDisabled) {
             this._logger.sendTelemetryEvent({ eventName: "SummariesDisabled" });
         } else if (SummarizerClientElection.clientDetailsPermitElection(this.context.clientDetails)) {
+            // Only create a SummaryManager and SummarizerClientElection
+            // if summaries are enabled and we are not the summarizer client.
             const maxOpsSinceLastSummary = this.runtimeOptions.summaryOptions.maxOpsSinceLastSummary ?? 7000;
             const defaultAction = () => {
                 if (this.summaryCollection.opsSinceLastAck > maxOpsSinceLastSummary) {
@@ -2439,7 +2440,6 @@ export const formRequestSummarizerFn = (
     lastSequenceNumber: number,
     { cache, reconnect, summarizingClient }: ISummarizerRequestOptions,
 ) => async () => {
-    // TODO eventually we may wish to spawn an execution context from which to run this
     const request: IRequest = {
         headers: {
             [LoaderHeader.cache]: cache,
@@ -2454,11 +2454,11 @@ export const formRequestSummarizerFn = (
         url: "/_summarizer",
     };
 
-    const fluidObject = await requestFluidObject(loaderRouter, request);
+    const fluidObject = await requestFluidObject<FluidObject<ISummarizer>>(loaderRouter, request);
     const summarizer = fluidObject.ISummarizer;
 
     if (!summarizer) {
-        return Promise.reject(new Error("Fluid object does not implement ISummarizer"));
+        throw new Error("Fluid object does not implement ISummarizer");
     }
 
     return summarizer;
